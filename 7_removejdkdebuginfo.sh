@@ -28,11 +28,8 @@ if [[ "$TARGET_JDK" == "aarch64" ]] || [[ "$TARGET_JDK" == "x86_64" ]]; then
 fi
 
 # Produce the jre equivalent from the jdk (https://blog.adoptium.net/2021/10/jlink-to-produce-own-runtime/)
-if [[ "$BUILD_IOS" != "1" ]]; then
-   export JLINK_STRIP_ARG="--strip-native-debug-symbols=exclude-debuginfo-files:objcopy=${OBJCOPY}"
-else
-   export JLINK_STRIP_ARG="--strip-debug"
-fi
+# Diagnostic build: retain native debug symbols in the runtime image.
+export JLINK_STRIP_ARG=""
 
 jlink \
 --module-path=jdkout/jmods \
