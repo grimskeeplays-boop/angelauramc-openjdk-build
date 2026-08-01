@@ -1,11 +1,11 @@
-name: Build Java 21.0.8 Android ARM64
+name: Build JDK21THOR 21.0.8+9 Android ARM64
 
 on:
   workflow_dispatch:
 
 jobs:
   build_android_arm64:
-    name: Build Java 21.0.8 for Android ARM64
+    name: Build JDK21THOR 21.0.8+9 for AYN Thor
     runs-on: ubuntu-22.04
 
     steps:
@@ -38,15 +38,20 @@ jobs:
             libxrender-dev \
             libxt-dev
 
-      - name: Build Android ARM64 JRE
+      - name: Build JDK21THOR Android ARM64 JRE
         run: |
           export TARGET_VERSION=21
           bash 1_ci_build_arch_aarch64.sh
 
-      - name: Upload Android ARM64 JRE
+      - name: Create SHA-256 checksum
+        run: sha256sum jre21-android*.tar.xz | tee SHA256SUMS.txt
+
+      - name: Upload JDK21THOR runtime
         uses: actions/upload-artifact@v4
         with:
-          name: jre21-android-aarch64-21.0.8
-          path: jre21-android*.tar.xz
+          name: JDK21THOR-21.0.8-build9-Android-AArch64
+          path: |
+            jre21-android*.tar.xz
+            SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
