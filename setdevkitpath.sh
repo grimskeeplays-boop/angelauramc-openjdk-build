@@ -56,7 +56,7 @@ else
 
 export JVM_PLATFORM=linux
 # Set NDK
-export API=21
+export API=26
 if [[ -z "$NDK" ]]; then
   export NDK=`pwd`/android-ndk-$NDK_VERSION
 fi

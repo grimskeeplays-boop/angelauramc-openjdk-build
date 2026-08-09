@@ -62,16 +62,35 @@ ln -s -f $CUPS_DIR/cups $ANDROID_INCLUDE/
 cd openjdk
 
 # Apply patches
+#
+# ThorCraft: every apply below used to end in "|| echo ...", so a patch set that
+# stopped applying against a newer tag produced a silently under-patched JVM
+# instead of a failed build. Fail hard instead.
+applypatch() {
+  echo "Applying $1"
+  git apply --reject --whitespace=fix "$1" || {
+    echo "git apply failed: $1" >&2
+    exit 1
+  }
+}
+
 git reset --hard
 if [[ "$BUILD_IOS" != "1" ]]; then
-  git apply --reject --whitespace=fix ../patches/jdk8u_android.diff || echo "git apply failed (universal patch set)"
+  applypatch ../patches/jdk8u_android.diff
   if [[ "$TARGET_JDK" != "aarch32" ]]; then
-    git apply --reject --whitespace=fix ../patches/jdk8u_android_main.diff || echo "git apply failed (main non-universal patch set)"
+    applypatch ../patches/jdk8u_android_main.diff
   else
-    git apply --reject --whitespace=fix ../patches/jdk8u_android_aarch32.diff || echo "git apply failed (aarch32 non-universal patch set)"
+    applypatch ../patches/jdk8u_android_aarch32.diff
   fi
   if [[ "$TARGET_JDK" == "x86" ]]; then
-    git apply --reject --whitespace=fix ../patches/jdk8u_android_page_trap_fix.diff || echo "git apply failed (x86 page trap fix)"
+    applypatch ../patches/jdk8u_android_page_trap_fix.diff
+  fi
+  # JDK-8360869 added a configure guard that rejects "GCC < 5" on aarch64. This
+  # build sets --with-toolchain-type=gcc but actually compiles with the NDK's
+  # clang, which the guard misreads. Restricting it to real GCC is what lets the
+  # aarch64 pin move past 8u482.
+  if [[ "$TARGET_JDK" == "aarch64" ]]; then
+    applypatch ../patches/jdk8u_aarch64_gcc4_check.diff
   fi
 else
   git apply --reject --whitespace=fix ../patches/jdk8u_ios.diff || echo "git apply failed (ios patch set)"

@@ -1,11 +1,11 @@
 name: Build OpenJDK 8 for Android
 
+# ThorCraft: dispatch-only. The build_iosport job targets the self-hosted runner
+# "J316sAP", which does not exist on this fork, so every push queued a job that
+# sat for the full 24h limit before failing. ThorCraft builds live in
+# thorcraft-jre8.yml.
 on:
-  push:
-  pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 1 */2 *'
 
 jobs:
   build_android:
