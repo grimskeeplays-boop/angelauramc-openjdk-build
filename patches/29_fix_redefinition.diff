@@ -1,0 +1,23 @@
+// ThorCraft: do not redefine __uint32_t/__uint16_t/__uint64_t on Android.
+//
+// The statx block is guarded by "#ifndef __GLIBC__" for Alpine/musl, but Bionic
+// does not define __GLIBC__ either, so Android compiles it and collides with
+// Bionic's own typedefs. On 64-bit the widths happen to match and clang lets it
+// pass; on 32-bit "unsigned long int" is 32 bits against Bionic's 64-bit
+// __uint64_t, so aarch32 and x86 fail with "typedef redefinition with different
+// types". JDK 17 already carries this fix as 25_fix_redefinition.diff; JDK 21
+// and 25 never needed it while they were pinned to releases predating statx.
+
+diff --git a/src/java.base/unix/native/libnio/fs/UnixNativeDispatcher.c b/src/java.base/unix/native/libnio/fs/UnixNativeDispatcher.c
+index 5f81241..d82acef 100644
+--- a/src/java.base/unix/native/libnio/fs/UnixNativeDispatcher.c
++++ b/src/java.base/unix/native/libnio/fs/UnixNativeDispatcher.c
+@@ -70,7 +70,7 @@
+ // by defining binary compatible statx structs in this file and
+ // not relying on included headers.
+ 
+-#ifndef __GLIBC__
++#if !defined(__GLIBC__) && !defined(__ANDROID__)
+ // Alpine doesn't know these types, define them
+ typedef unsigned int       __uint32_t;
+ typedef unsigned short     __uint16_t;
