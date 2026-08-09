@@ -1,0 +1,105 @@
+name: ThorCraft JRE8 (all Android ABIs)
+
+# Builds JDK 8 for every Android ABI ThorCraft ships and repacks it into the
+# launcher asset layout (universal.tar.xz + bin-<abi>.tar.xz + version).
+#
+# JDK 8 serves Minecraft 1.16.5 and older. It does NOT carry the get_thread
+# register defect that affects 17/21/25 -- its aarch64 port keeps the thread in
+# reserved r28 and has no aarch64_get_thread_helper -- so there is no register
+# patch and no A/B to run here.
+#
+# This definition lives on the default branch because workflow_dispatch only
+# registers workflows found there, but the build tree it compiles lives on
+# thorcraft/jre8 -- upstream keeps jre8 on an incompatible script layout. Every
+# checkout below pins that ref explicitly.
+
+on:
+  workflow_dispatch:
+    inputs:
+      jdk_tag:
+        description: "jdk8u tag to build (aarch64/x86/x86_64; aarch32 tracks its own port)"
+        required: false
+        default: "jdk8u502-ga"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch32, aarch64, x86, x86_64]
+
+    name: "JRE8 / ${{ matrix.arch }}"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout thorcraft/jre8
+        uses: actions/checkout@v4
+        with:
+          ref: thorcraft/jre8
+
+      - name: Set up boot JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: "8"
+          distribution: zulu
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt -y install autoconf python3 python-is-python3 unzip zip \
+            systemtap-sdt-dev gcc-multilib g++-multilib libxtst-dev \
+            libasound2-dev libelf-dev libfontconfig1-dev libx11-dev
+
+      - name: Build
+        run: |
+          export JDK_TAG="${{ inputs.jdk_tag }}"
+          bash ci_build_arch_${{ matrix.arch }}.sh
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: "jre8-${{ matrix.arch }}"
+          path: jre8-android*.tar.xz
+          if-no-files-found: error
+          retention-days: 90
+
+  repack:
+    name: Repack JRE8 for the launcher
+    needs: build
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout thorcraft/jre8
+        uses: actions/checkout@v4
+        with:
+          ref: thorcraft/jre8
+
+      # repackjre.sh globs one directory for every ABI's tarball, so all four
+      # artifacts have to land in the same place.
+      - name: Collect every ABI
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "jre8-*"
+          path: collected
+          merge-multiple: true
+
+      - name: Repack into launcher asset layout
+        run: |
+          ls -l collected
+          bash repackjre.sh "$GITHUB_WORKSPACE/collected" \
+                            "$GITHUB_WORKSPACE/packaged/jre8"
+
+      - name: Checksum and summarise
+        run: |
+          cd packaged/jre8
+          sha256sum ./* | tee SHA256SUMS.txt
+          echo "### jre8 asset set" >> "$GITHUB_STEP_SUMMARY"
+          ls -lh | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload launcher-ready asset set
+        uses: actions/upload-artifact@v4
+        with:
+          name: thorcraft-asset-jre8
+          path: packaged/jre8/*
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,90 @@
+name: ThorCraft JRE25 (all Android ABIs)
+
+# Builds JDK 25 for every Android ABI ThorCraft ships and repacks it into the
+# launcher asset layout (universal.tar.xz + bin-<abi>.tar.xz + version).
+#
+# Upstream built only aarch32/aarch64/x86_64 -- which is why the shipped jre25
+# asset set has no bin-x86.tar.xz. x86 is included here.
+#
+# This definition lives on the default branch because workflow_dispatch only
+# registers workflows found there, but the build tree it compiles lives on
+# thorcraft/jre25 -- upstream keeps jre25 on an incompatible script layout. Every
+# checkout below pins that ref explicitly.
+
+on:
+  workflow_dispatch:
+    inputs:
+      jdk_tag:
+        description: "OpenJDK tag to build"
+        required: false
+        default: "jdk-25.0.4-ga"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch32, aarch64, x86, x86_64]
+
+    name: "JRE25 / ${{ matrix.arch }}"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout thorcraft/jre25
+        uses: actions/checkout@v4
+        with:
+          ref: thorcraft/jre25
+
+      - name: Build
+        run: |
+          export JDK_TAG="${{ inputs.jdk_tag }}"
+          bash ci_build_arch_${{ matrix.arch }}.sh
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: "jre25-${{ matrix.arch }}"
+          path: jre25-*.tar.xz
+          if-no-files-found: error
+          retention-days: 90
+
+  repack:
+    name: Repack JRE25 for the launcher
+    needs: build
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout thorcraft/jre25
+        uses: actions/checkout@v4
+        with:
+          ref: thorcraft/jre25
+
+      # repack_jre.sh globs one directory for every ABI's tarball, so all four
+      # artifacts have to land in the same place.
+      - name: Collect every ABI
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "jre25-*"
+          path: collected
+          merge-multiple: true
+
+      - name: Repack into launcher asset layout
+        run: |
+          ls -l collected
+          bash repack_jre.sh "$GITHUB_WORKSPACE/collected" \
+                             "$GITHUB_WORKSPACE/packaged/jre25"
+
+      - name: Checksum and summarise
+        run: |
+          cd packaged/jre25
+          sha256sum ./* | tee SHA256SUMS.txt
+          echo "### jre25 asset set" >> "$GITHUB_STEP_SUMMARY"
+          ls -lh | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload launcher-ready asset set
+        uses: actions/upload-artifact@v4
+        with:
+          name: thorcraft-asset-jre25
+          path: packaged/jre25/*
+          if-no-files-found: error
+          retention-days: 90
