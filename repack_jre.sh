@@ -64,7 +64,7 @@ makeuni () {
 makeuni
 makearch aarch32 arm
 makearch aarch64 arm64
-makearch i386 x86
+# No x86: JDK 25 removed the 32-bit x86 port (configure rejects it outright).
 makearch amd64 x86_64
 
 # if running under GitHub Actions, write commit sha, else formatted system date
