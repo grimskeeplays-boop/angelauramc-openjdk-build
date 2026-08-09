@@ -3,8 +3,8 @@ name: ThorCraft JRE25 (all Android ABIs)
 # Builds JDK 25 for every Android ABI ThorCraft ships and repacks it into the
 # launcher asset layout (universal.tar.xz + bin-<abi>.tar.xz + version).
 #
-# Upstream built only aarch32/aarch64/x86_64 -- which is why the shipped jre25
-# asset set has no bin-x86.tar.xz. x86 is included here.
+# Only aarch32/aarch64/x86_64: JDK 25 removed the 32-bit x86 port, so there can
+# be no bin-x86.tar.xz for this slot. Upstream's omission was correct.
 #
 # This definition lives on the default branch because workflow_dispatch only
 # registers workflows found there, but the build tree it compiles lives on
@@ -24,7 +24,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [aarch32, aarch64, x86, x86_64]
+        # JDK 25 removed the 32-bit x86 port; configure fails with
+        # "32-bit x86 builds are not supported". aarch32 is unaffected.
+        arch: [aarch32, aarch64, x86_64]
 
     name: "JRE25 / ${{ matrix.arch }}"
     runs-on: ubuntu-22.04
