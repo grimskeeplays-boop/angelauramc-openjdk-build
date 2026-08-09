@@ -12,44 +12,6 @@ index 1aab2b303e..f38997fb41 100644
  	# First accept the basic system types.
  	# The portable systems comes first.
  	# Each alternative MUST END IN A *, to match a version number.
-diff --git a/common/autoconf/build-aux/config.sub b/common/autoconf/build-aux/config.sub
-index cc958da946..162e27c064 100644
---- a/common/autoconf/build-aux/config.sub
-+++ b/common/autoconf/build-aux/config.sub
-@@ -30,7 +30,8 @@
- DIR=`dirname $0`
- 
- # First, filter out everything that doesn't begin with "aarch64-"
--if ! echo $* | grep '^aarch64-' >/dev/null ; then
-+# or the mobile platforms (ios and android)
-+if ! echo $* | egrep "^aarch64-|-android" >/dev/null ; then
-     . $DIR/autoconf-config.sub "$@"
-     # autoconf-config.sub exits, so we never reach here, but just in
-     # case we do:
-@@ -41,6 +42,10 @@ while test $# -gt 0 ; do
-     case $1 in 
-         -- )   # Stop option processing
-             shift; break ;;
-+        *-android* )
-+            echo $1
-+            exit
-+            ;;
-         aarch64-* )
-             config=`echo $1 | sed 's/^aarch64-/arm-/'`
-             sub_args="$sub_args $config"
-diff --git a/common/autoconf/flags.m4 b/common/autoconf/flags.m4
-index 077efa297c..222090b21a 100644
---- a/common/autoconf/flags.m4
-+++ b/common/autoconf/flags.m4
-@@ -398,7 +398,7 @@ AC_DEFUN_ONCE([FLAGS_SETUP_COMPILER_FLAGS_FOR_JDK],
-       LDFLAGS_JDK="$LDFLAGS_JDK -Wl,-z,relro"
-       LEGACY_EXTRA_LDFLAGS="$LEGACY_EXTRA_LDFLAGS -Wl,-z,relro"
-     fi
--    $2CXXSTD_CXXFLAG="-std=gnu++98"
-+    $2CXXSTD_CXXFLAG="-std=gnu++11"
-     FLAGS_CXX_COMPILER_CHECK_ARGUMENTS([[$]$2CXXSTD_CXXFLAG -Werror],
-                                        [], [$2CXXSTD_CXXFLAG=""])
-     $2CXXFLAGS_JDK="${$2CXXFLAGS_JDK} ${$2CXXSTD_CXXFLAG}"
 diff --git a/common/autoconf/generated-configure.sh b/common/autoconf/generated-configure.sh
 index 62f8f42998..0f91308a81 100644
 --- a/common/autoconf/generated-configure.sh
@@ -60908,19 +60870,6 @@ index 303c96d788..aa555cc286 100644
 +    }
 +
      /**
-diff --git a/common/autoconf/version-numbers b/common/autoconf/version-numbers
-index b612b491..e64faa79 100644
---- a/common/autoconf/version-numbers
-+++ b/common/autoconf/version-numbers
-@@ -29,7 +29,7 @@ JDK_MICRO_VERSION=0
- JDK_UPDATE_VERSION=482
- LAUNCHER_NAME=openjdk
- PRODUCT_NAME=OpenJDK
--PRODUCT_SUFFIX="Runtime Environment"
-+PRODUCT_SUFFIX="Android Runtime Environment"
- JDK_RC_PLATFORM_NAME=Platform
- COMPANY_NAME=N/A
- 
 diff --git a/jdk/src/share/classes/java/net/NetworkInterface.java b/jdk/src/share/classes/java/net/NetworkInterface.java
 index 0b47e3dd..0d9678ea 100644
 --- a/jdk/src/share/classes/java/net/NetworkInterface.java

@@ -76,6 +76,49 @@ applypatch() {
 
 git reset --hard
 if [[ "$BUILD_IOS" != "1" ]]; then
+  # jdk8u_android.diff used to carry a one-line cosmetic hunk retitling
+  # PRODUCT_SUFFIX in common/autoconf/version-numbers. Its context included
+  # "JDK_UPDATE_VERSION=482", so it stopped applying the moment the pin moved to
+  # 8u502 and would break again on every future update. Done with sed instead,
+  # which no longer cares what the update version is.
+  sed -i 's/^PRODUCT_SUFFIX="Runtime Environment"$/PRODUCT_SUFFIX="Android Runtime Environment"/' \
+    common/autoconf/version-numbers
+  grep -q '^PRODUCT_SUFFIX="Android Runtime Environment"$' common/autoconf/version-numbers || {
+    echo "failed to retitle PRODUCT_SUFFIX in common/autoconf/version-numbers" >&2
+    exit 1
+  }
+
+  # config.sub must pass Android target triples through instead of delegating to
+  # autoconf-config.sub, which does not know them. This used to be two hunks in
+  # jdk8u_android.diff written against jdk8u's config.sub, so it always rejected
+  # on aarch32, whose repo (aarch32-port-jdk8u) ships a structurally different
+  # wrapper handling both aarch32- and aarch64- prefixes. An early passthrough
+  # is equivalent to both hunks and does not care which wrapper is present.
+  python3 - <<'PYEOF'
+import io, sys
+path = "common/autoconf/build-aux/config.sub"
+marker = "# ThorCraft: pass Android target triples through"
+src = io.open(path, encoding="utf-8", errors="surrogateescape").read()
+if marker not in src:
+    lines = src.split("\n")
+    for i, ln in enumerate(lines):
+        if ln.startswith("DIR="):
+            lines[i+1:i+1] = [
+                "",
+                marker,
+                'for __tc_arg in "$@"; do',
+                '    case "$__tc_arg" in',
+                '        *-android*) echo "$__tc_arg"; exit 0 ;;',
+                "    esac",
+                "done",
+            ]
+            break
+    else:
+        sys.exit("config.sub: no DIR= anchor found")
+    io.open(path, "w", encoding="utf-8", errors="surrogateescape").write("\n".join(lines))
+print("config.sub: Android passthrough installed")
+PYEOF
+
   applypatch ../patches/jdk8u_android.diff
   if [[ "$TARGET_JDK" != "aarch32" ]]; then
     applypatch ../patches/jdk8u_android_main.diff
