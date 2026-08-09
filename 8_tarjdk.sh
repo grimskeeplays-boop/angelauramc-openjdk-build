@@ -34,8 +34,14 @@ cp -rv jre_override/lib/* jreout/lib/ || true
 
 cd jreout
 
-# Strip other libraries, but retain symbols in libjvm.so for crash analysis.
-find ./ -name '*.so' ! -path './lib/server/libjvm.so' -execdir ${TOOLCHAIN}/bin/llvm-strip {} \;
+# Strip in place all .so files thanks to the ndk. KEEP_JVM_SYMBOLS=1 spares
+# libjvm.so so crash stacks symbolize; note that only ever covered the server
+# variant, so aarch32 (client) was stripped either way.
+if [[ "${KEEP_JVM_SYMBOLS:-0}" == "1" ]]; then
+  find ./ -name '*.so' ! -path './lib/server/libjvm.so' -execdir ${TOOLCHAIN}/bin/llvm-strip {} \;
+else
+  find ./ -name '*.so' -execdir ${TOOLCHAIN}/bin/llvm-strip {} \;
+fi
 
 
 tar cJf ../jre${TARGET_VERSION}-${TARGET_OS}-${TARGET_SHORT}-`date +%Y%m%d`-${JDK_DEBUG_LEVEL}.tar.xz .

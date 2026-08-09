@@ -28,8 +28,16 @@ if [[ "$TARGET_JDK" == "aarch64" ]] || [[ "$TARGET_JDK" == "x86_64" ]]; then
 fi
 
 # Produce the jre equivalent from the jdk (https://blog.adoptium.net/2021/10/jlink-to-produce-own-runtime/)
-# Diagnostic build: retain native debug symbols in the runtime image.
-export JLINK_STRIP_ARG=""
+# ThorCraft: strip by default. KEEP_JVM_SYMBOLS=1 restores the diagnostic build
+# that retains a full libjvm symbol table for crash analysis, at roughly 6x the
+# shipped runtime size -- fine for debugging, wrong for an APK asset.
+if [[ "${KEEP_JVM_SYMBOLS:-0}" == "1" ]]; then
+   export JLINK_STRIP_ARG=""
+elif [[ "$BUILD_IOS" != "1" ]]; then
+   export JLINK_STRIP_ARG="--strip-native-debug-symbols=exclude-debuginfo-files:objcopy=${OBJCOPY}"
+else
+   export JLINK_STRIP_ARG="--strip-debug"
+fi
 
 jlink \
 --module-path=jdkout/jmods \

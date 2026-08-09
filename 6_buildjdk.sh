@@ -120,7 +120,7 @@ bash ./configure \
     --with-jvm-features=-dtrace,-zero,-vm-structs,-epsilongc \
     --with-cups-include=$CUPS_DIR \
     --with-devkit=$TOOLCHAIN \
-    --with-native-debug-symbols=internal \
+    --with-native-debug-symbols=${THORCRAFT_DEBUG_SYMBOLS:-external} \
     --with-debug-level=$JDK_DEBUG_LEVEL \
     --with-fontconfig-include=$ANDROID_INCLUDE \
     $AUTOCONF_x11arg $AUTOCONF_EXTRA_ARGS \
