@@ -42,8 +42,19 @@ ln -s -f $CUPS_DIR/cups $ANDROID_INCLUDE/
 cd openjdk
 
 # Apply patches
+#
+# ThorCraft: apply every patch in sorted order and FAIL if any of them does not
+# land. Upstream applied only jdk25u_android.diff and swallowed the result with
+# "|| echo", so a patch set that stopped applying against a newer tag produced a
+# silently under-patched JVM instead of a failed build.
 git reset --hard
-git apply --reject --whitespace=fix ../patches/jdk25u_android.diff || echo "git apply failed (Android patch set)"
+for p in $(find ../patches -maxdepth 1 -name '*.diff' | sort); do
+  echo "Applying $p"
+  git apply --reject --whitespace=fix "$p" || {
+    echo "git apply failed: $p" >&2
+    exit 1
+  }
+done
 
 bash ./configure \
     --with-boot-jdk=$BOOT_JDK \

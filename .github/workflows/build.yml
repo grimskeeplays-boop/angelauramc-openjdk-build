@@ -1,8 +1,8 @@
 name: Build OpenJDK 25 for Android
 
+# ThorCraft: dispatch-only, so pushes to this branch do not kick off the
+# inherited matrix. ThorCraft builds live in thorcraft-jre25.yml.
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 jobs:

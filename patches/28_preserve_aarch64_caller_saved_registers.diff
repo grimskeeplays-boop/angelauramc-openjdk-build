@@ -1,0 +1,38 @@
+// ThorCraft: preserve the full caller-saved GPR set across get_thread on Android.
+//
+// MacroAssembler::get_thread saves only r0/r1/lr under LINUX_ONLY, which is
+// correct for glibc Linux because there aarch64_get_thread_helper is the
+// hand-written assembly routine in threadLS_linux_aarch64.S that clobbers only
+// r0, r1 and flags.
+//
+// __linux__ is also defined on Android, so Android takes that same branch --
+// but jdk25u_android.diff wraps that assembly routine in "#ifndef __ANDROID__",
+// so on Android the helper is instead the ordinary C++ function
+// JavaThread::aarch64_get_thread_helper() { return Thread::current(); } in
+// javaThread_linux_aarch64.hpp. As a normal AAPCS64 call it may clobber all of
+// r0-r17, and reading a __thread variable from a shared object can route
+// through __tls_get_addr, which certainly does.
+//
+// Without this, r2-r17 are silently corrupted at every get_thread site in
+// JIT-generated code and runtime stubs.
+
+diff --git a/src/hotspot/cpu/aarch64/macroAssembler_aarch64.cpp b/src/hotspot/cpu/aarch64/macroAssembler_aarch64.cpp
+index 6576a18..e298045 100644
+--- a/src/hotspot/cpu/aarch64/macroAssembler_aarch64.cpp
++++ b/src/hotspot/cpu/aarch64/macroAssembler_aarch64.cpp
+@@ -6726,9 +6726,15 @@ void MacroAssembler::java_round_float(Register dst, FloatRegister src,
+ // On other systems, the helper is a usual C function.
+ //
+ void MacroAssembler::get_thread(Register dst) {
++#ifdef __ANDROID__
++  // Android has no assembly helper for aarch64_get_thread_helper; it is an
++  // ordinary C++ function and may clobber the whole caller-saved GPR set.
++  RegSet saved_regs = RegSet::range(r0, r17) + lr - dst;
++#else
+   RegSet saved_regs =
+     LINUX_ONLY(RegSet::range(r0, r1)  + lr - dst)
+     NOT_LINUX (RegSet::range(r0, r17) + lr - dst);
++#endif
+ 
+   protect_return_address();
+   push(saved_regs, sp);
