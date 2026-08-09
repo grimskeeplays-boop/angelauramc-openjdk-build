@@ -87,6 +87,20 @@ jobs:
           bash 9_repackjre.sh "$GITHUB_WORKSPACE/collected" \
                               "$GITHUB_WORKSPACE/packaged/jre${{ matrix.version }}"
 
+      # The repack scripts write $GITHUB_SHA into "version" when they detect
+      # Actions, but RuntimeUtils.isLatest() parses that file with
+      # Long.parseLong() -- a 40-char hex SHA throws NumberFormatException on
+      # every launch. The stock assets carry small integers, so write a numeric,
+      # monotonically increasing stamp instead.
+      - name: Replace the version stamp with a parseable number
+        run: |
+          set -eu
+          d=$(date +%Y%m%d)
+          find packaged -name version -print0 | while IFS= read -r -d '' v; do
+            printf '%s' "$d" > "$v"
+            echo "$v -> $d"
+          done
+
       - name: Checksum and summarise
         run: |
           cd packaged/jre${{ matrix.version }}
