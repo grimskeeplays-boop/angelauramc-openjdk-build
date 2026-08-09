@@ -8,7 +8,13 @@ export CFLAGS+=" -DLE_STANDALONE"
 if [[ "$TARGET_JDK" == "arm" ]]
 then
   export CFLAGS+=" -O3 -D__thumb__"
-  export CFLAGS+=" -Dfseeko=fseek -Dftello=ftell"
+  # -Dfseeko=fseek stood in for 32-bit Bionic not declaring fseeko/ftello.
+  # From API 24 it does declare them, and the macro then rewrites Bionic's own
+  # declaration into a second, differently-typed "fseek" -- the build fails with
+  # "conflicting types for 'fseek'" in stdio.h. Only apply it below API 24.
+  if [[ "${API:-21}" -lt 24 ]]; then
+    export CFLAGS+=" -Dfseeko=fseek -Dftello=ftell"
+  fi
 else
   export CFLAGS+=" -O3"
 fi
