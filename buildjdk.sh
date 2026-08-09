@@ -128,12 +128,24 @@ PYEOF
   if [[ "$TARGET_JDK" == "x86" ]]; then
     applypatch ../patches/jdk8u_android_page_trap_fix.diff
   fi
-  # JDK-8360869 added a configure guard that rejects "GCC < 5" on aarch64. This
-  # build sets --with-toolchain-type=gcc but actually compiles with the NDK's
-  # clang, which the guard misreads. Restricting it to real GCC is what lets the
-  # aarch64 pin move past 8u482.
+  # JDK-8360869 (in 8u502, not 8u482) added a configure guard that aborts when
+  # TOOLCHAIN_TYPE is gcc, the target is aarch64, and the compiler's major
+  # version is below 5, because GCC 4.x miscompiles HotSpot there. This build
+  # passes --with-toolchain-type=gcc but compiles with the NDK's clang, whose
+  # version string the guard misparses -- so it aborts on a compiler it was
+  # never about, which is what kept the aarch64 pin stuck at 8u482.
+  #
+  # Detecting clang at that point in configure did not work (the guard still
+  # fired), so neutralise the abort itself rather than depend on runtime
+  # detection. The check still prints its result; only the fatal call is
+  # dropped, and only in the generated script configure actually executes.
   if [[ "$TARGET_JDK" == "aarch64" ]]; then
-    applypatch ../patches/jdk8u_aarch64_gcc4_check.diff
+    sed -i 's|as_fn_error $? "GCC < 5 may incorrectly compile HotSpot on aarch64. See JDK-8360869." "$LINENO" 5|: # ThorCraft: guard targets real GCC 4.x; this cross-build uses NDK clang|' \
+      common/autoconf/generated-configure.sh
+    if grep -q 'GCC < 5 may incorrectly compile HotSpot on aarch64' common/autoconf/generated-configure.sh; then
+      echo "failed to neutralise the JDK-8360869 aarch64 guard" >&2
+      exit 1
+    fi
   fi
 else
   git apply --reject --whitespace=fix ../patches/jdk8u_ios.diff || echo "git apply failed (ios patch set)"
