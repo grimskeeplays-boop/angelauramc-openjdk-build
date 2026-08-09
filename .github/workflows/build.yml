@@ -1,11 +1,12 @@
 name: Build OpenJDK 17 for Android and iOS
 
+# ThorCraft: dispatch-only. This workflow's build_iosport job targets the
+# self-hosted runner "J316sAP", which does not exist on this fork, so every
+# push previously queued a job that sat for the full 24h limit before failing.
+# The ThorCraft builds live in thorcraft-jre-matrix.yml and
+# thorcraft-register-ab.yml; this file is kept only for upstream parity.
 on:
-  push:
-  pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: "0 1 1 */2 *"
 
 jobs:
   build_android:

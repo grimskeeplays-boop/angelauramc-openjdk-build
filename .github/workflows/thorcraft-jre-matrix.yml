@@ -1,0 +1,103 @@
+name: ThorCraft JRE matrix (17 + 21, all Android ABIs)
+
+# Builds the full set of Android runtimes ThorCraft ships, at pinned GA tags,
+# and repacks them into the launcher's asset layout
+# (universal.tar.xz + bin-<abi>.tar.xz + version), ready to drop into
+# FCL/src/main/assets/app_runtime/java/jre<N>/.
+#
+# JDK 8 and 25 live on separate branches because upstream keeps them on
+# incompatible script layouts.
+
+on:
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "JSON array of Java versions to build"
+        required: false
+        default: '[17, 21]'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch32, aarch64, x86, x86_64]
+        version: ${{ fromJSON(inputs.versions) }}
+
+    name: "Java ${{ matrix.version }} / ${{ matrix.arch }}"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up boot JDK ${{ matrix.version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: "${{ matrix.version }}"
+          distribution: temurin
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt -y install autoconf python3 python-is-python3 unzip zip \
+            systemtap-sdt-dev libxtst-dev libasound2-dev libelf-dev \
+            libfontconfig1-dev libx11-dev libxext-dev libxrandr-dev \
+            libxrender-dev libxt-dev
+
+      - name: Build
+        run: |
+          export TARGET_VERSION=${{ matrix.version }}
+          bash 1_ci_build_arch_${{ matrix.arch }}.sh
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: "jre${{ matrix.version }}-${{ matrix.arch }}"
+          path: jre${{ matrix.version }}-android-*.tar.xz
+          if-no-files-found: error
+          retention-days: 90
+
+  repack:
+    name: "Repack Java ${{ matrix.version }} for the launcher"
+    needs: build
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(inputs.versions) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 9_repackjre.sh globs one directory for every ABI's tarball, so all four
+      # artifacts have to land in the same place.
+      - name: Collect every ABI for this version
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "jre${{ matrix.version }}-*"
+          path: collected
+          merge-multiple: true
+
+      - name: Repack into launcher asset layout
+        run: |
+          export TARGET_VERSION=${{ matrix.version }}
+          ls -l collected
+          bash 9_repackjre.sh "$GITHUB_WORKSPACE/collected" \
+                              "$GITHUB_WORKSPACE/packaged/jre${{ matrix.version }}"
+
+      - name: Checksum and summarise
+        run: |
+          cd packaged/jre${{ matrix.version }}
+          sha256sum ./* | tee SHA256SUMS.txt
+          echo "### jre${{ matrix.version }} asset set" >> "$GITHUB_STEP_SUMMARY"
+          ls -lh | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload launcher-ready asset set
+        uses: actions/upload-artifact@v4
+        with:
+          name: "thorcraft-asset-jre${{ matrix.version }}"
+          path: packaged/jre${{ matrix.version }}/*
+          if-no-files-found: error
+          retention-days: 90

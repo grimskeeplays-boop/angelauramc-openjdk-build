@@ -1,0 +1,94 @@
+name: ThorCraft JRE21 get_thread register A/B
+
+# Controlled experiment for the ThorCraft crash family.
+#
+# Both arms build JDK 21.0.12-ga for Android aarch64 from an identical tree.
+# The ONLY difference is whether
+# patches/jre_21/android/28_preserve_aarch64_caller_saved_registers.diff
+# is applied, so any behaviour change on the AYN Thor is attributable to that
+# patch alone.
+#
+#   control   -- patch removed, reproduces the stock FCL-lineage behaviour
+#   treatment -- patch applied, saves r0-r17 across get_thread on Android
+#
+# Install either output into runtime/java/<name>/ on the device; JavaManager
+# picks up any directory containing a parseable "release" file.
+
+on:
+  workflow_dispatch:
+    inputs:
+      jdk_tag:
+        description: "OpenJDK tag to build both arms from"
+        required: false
+        default: "jdk-21.0.12-ga"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [control, treatment]
+
+    name: "JRE21 aarch64 (${{ matrix.arm }})"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up boot JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt -y install autoconf python3 python-is-python3 unzip zip \
+            systemtap-sdt-dev libxtst-dev libasound2-dev libelf-dev \
+            libfontconfig1-dev libx11-dev libxext-dev libxrandr-dev \
+            libxrender-dev libxt-dev
+
+      - name: Remove register patch (control arm only)
+        if: matrix.arm == 'control'
+        run: rm -v patches/jre_21/android/28_preserve_aarch64_caller_saved_registers.diff
+
+      - name: Record exactly which patches this arm will apply
+        run: |
+          echo "arm=${{ matrix.arm }}" | tee ARM_MANIFEST.txt
+          echo "jdk_tag=${{ inputs.jdk_tag }}" | tee -a ARM_MANIFEST.txt
+          echo "--- patches ---" | tee -a ARM_MANIFEST.txt
+          ls -1 patches/jre_21/android/ | sort | tee -a ARM_MANIFEST.txt
+          sha256sum patches/jre_21/android/*.diff | tee -a ARM_MANIFEST.txt
+
+      - name: Build
+        run: |
+          export TARGET_VERSION=21
+          export JDK_TAG="${{ inputs.jdk_tag }}"
+          bash 1_ci_build_arch_aarch64.sh
+
+      # Proves from the shipped binary, not from the build log, that the two
+      # arms really differ. The stock save set pushes 2 GPRs per get_thread
+      # site; the patched one pushes 18. Recorded for both arms so the
+      # comparison is visible even if a build is re-run later.
+      - name: Fingerprint the built libjvm
+        run: |
+          tar xf jre21-android-arm64-*.tar.xz -C /tmp lib/server/libjvm.so || \
+            tar xf jre21-android-arm64-*.tar.xz -C /tmp ./lib/server/libjvm.so
+          sha256sum /tmp/lib/server/libjvm.so | tee -a ARM_MANIFEST.txt
+          ls -l /tmp/lib/server/libjvm.so | tee -a ARM_MANIFEST.txt
+
+      - name: Create SHA-256 checksums
+        run: sha256sum jre21-android-arm64-*.tar.xz | tee SHA256SUMS.txt
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: "thorcraft-jre21-aarch64-${{ matrix.arm }}"
+          path: |
+            jre21-android-arm64-*.tar.xz
+            SHA256SUMS.txt
+            ARM_MANIFEST.txt
+          if-no-files-found: error
+          retention-days: 90

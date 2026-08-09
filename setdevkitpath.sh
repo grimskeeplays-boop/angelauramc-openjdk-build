@@ -59,7 +59,7 @@ if [[ "$BUILD_IOS" == "1" ]]; then
 else
 
 export JVM_PLATFORM=linux
-export API=21
+export API=26
 
 # Runners usually ship with a recent NDK already
 if [[ -z "$ANDROID_NDK_HOME" ]]

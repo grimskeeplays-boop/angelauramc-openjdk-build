@@ -1,13 +1,14 @@
 #!/bin/bash
 set -e
 
+# ThorCraft: pin every line to an explicit GA tag. Upstream cloned jdk17u's
+# default branch, which meant the JDK patch level silently changed between
+# runs and could not be reproduced. JDK_TAG overrides the pin for A/B runs.
+
 if [[ $TARGET_VERSION -eq 21 ]]; then
-    if [[ $BUILD_IOS ]]; then
-        git clone --branch jdk-21.0.8+9 --depth 1 https://github.com/openjdk/jdk21u openjdk-21
-    else
-        # TODO: Update Android to JDK 21.0.8+9
-        git clone --branch jdk-21.0.8+9 --depth 1 https://github.com/openjdk/jdk21u openjdk-21
-    fi
+    tag="${JDK_TAG:-jdk-21.0.12-ga}"
+    git clone --branch "$tag" --depth 1 https://github.com/openjdk/jdk21u openjdk-21
 else
-    git clone --depth 1 https://github.com/openjdk/jdk17u openjdk-17
+    tag="${JDK_TAG:-jdk-17.0.20-ga}"
+    git clone --branch "$tag" --depth 1 https://github.com/openjdk/jdk17u openjdk-17
 fi
