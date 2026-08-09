@@ -1,5 +1,15 @@
 name: ThorCraft JRE21 get_thread register A/B
 
+# RESOLVED 2026-08-08 -- the register patch is NOT the cause of the ThorCraft
+# crash family. A patched 21.0.8 runtime was installed and verified in use on
+# the Thor (hs_err reported 21.0.8; on-device libjvm.so disassembled to the
+# widened save set) and Minecraft still crashed in ~30s with the identical
+# fingerprint. The register-clobber defect is real and stays fixed on its own
+# merits, but do not re-run this workflow expecting a root-cause answer.
+#
+# Kept because the two arms are still a clean way to isolate the patch if its
+# effect on anything else ever needs measuring.
+#
 # Controlled experiment for the ThorCraft crash family.
 #
 # Both arms build JDK 21.0.12-ga for Android aarch64 from an identical tree.
