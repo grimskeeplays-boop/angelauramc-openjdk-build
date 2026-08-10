@@ -9,14 +9,10 @@ git clone https://github.com/termux/termux-elf-cleaner || true
 cd termux-elf-cleaner
 mkdir build
 cd build
-# termux-elf-cleaner strips DT_HASH once its target API implies DT_GNU_HASH is
-# always present. The NDK link of these runtimes emits DT_HASH *only*, so at
-# API 26 the cleaner left the libraries with no hash table at all and Android
-# refused them: "empty/missing DT_HASH/DT_GNU_HASH ... (new hash type from the
-# future?)". Pin the cleaner to 24 -- what the working JDK 8 branch uses -- so
-# DT_HASH survives. This governs only what the cleaner strips; the JVM's own
-# target API level is unaffected.
-export CFLAGS=-D__ANDROID_API__=24
+# NB: this -D__ANDROID_API__ has no effect on termux-elf-cleaner -- it reads its
+# target from the --api-level flag below and otherwise defaults to 21. Kept only
+# because upstream sets it.
+export CFLAGS=-D__ANDROID_API__=${API}
 cmake ..
 make -j4
 unset CFLAGS
@@ -32,8 +28,15 @@ exit 1
 ' sh {} \; -print
 }
 
-findexec jreout | xargs -- ./termux-elf-cleaner/build/termux-elf-cleaner
-findexec jdkout | xargs -- ./termux-elf-cleaner/build/termux-elf-cleaner
+# --api-level is REQUIRED. termux-elf-cleaner defaults to api_level 21 and, for
+# anything below 23, deletes DT_GNU_HASH (plus DT_VERSYM/VERNEED/VERDEF). The
+# NDK linker emits only GNU hash at API >= 23, so leaving the default in place
+# strips a library's ONLY hash table and Android then refuses to load it:
+#   "empty/missing DT_HASH/DT_GNU_HASH ... (new hash type from the future?)"
+# That is invisible below API 23, where the linker also emits DT_HASH as a
+# fallback -- which is why this only appeared once the build moved to API 26.
+findexec jreout | xargs -- ./termux-elf-cleaner/build/termux-elf-cleaner --api-level ${API}
+findexec jdkout | xargs -- ./termux-elf-cleaner/build/termux-elf-cleaner --api-level ${API}
 
 fi
 
